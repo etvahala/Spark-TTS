@@ -12,7 +12,7 @@ from torch import (
 
 from cli.SparkTTS import SparkTTS
 from pythonapi.interfaces import InputDirectives, Narrator, OutputSpec, TokenizedContent
-from sparktts.utils.token_parser import GENDER_MAP, LEVELS_MAP, TASK_TOKEN_MAP
+from sparktts.utils.token_parser import GENDER_MAP, LEVELS_MAP, TASK_TOKEN_MAP, TokenParser
 
 _LOG = getLogger(__name__)
 
@@ -57,7 +57,7 @@ def _inference(
 
     # Trim the output tokens to remove the input tokens
     generated_ids = [
-        output_ids[len(input_ids) :]
+        output_ids[len(input_ids):]
         for input_ids, output_ids in zip(model_inputs.input_ids, generated_ids)
     ]
 
@@ -92,20 +92,21 @@ def generate_input_directives(
     """Generate input directives for the TTS model"""
     narrator = narrator if narrator else Narrator()
 
-    gender_id = GENDER_MAP[narrator.gender]
-    pitch_level_id = LEVELS_MAP[narrator.pitch]
-    speed_level_id = LEVELS_MAP[narrator.speed]
-
-    pitch_label_tokens = f"<|pitch_label_{pitch_level_id}|>"
-    speed_label_tokens = f"<|speed_label_{speed_level_id}|>"
-    gender_tokens = f"<|gender_{gender_id}|>"
-
     attribute_tokens = "".join(
-        [gender_tokens, pitch_label_tokens, speed_label_tokens]
+        [
+            TokenParser.gender(narrator.gender),
+            #TokenParser.mel_value(10),
+            TokenParser.mel_level(narrator.pitch),
+            #TokenParser.pitch_var_value(narrator.pitch),
+            #TokenParser.pitch_var_level(narrator.pitch),
+            #TokenParser.loudness_value(narrator.pitch),
+            #TokenParser.loudness_level(narrator.pitch),
+            #TokenParser.speed_value(narrator.speed),
+            TokenParser.speed_level(narrator.speed)]
     )
 
     control_tts_inputs = [
-        TASK_TOKEN_MAP["controllable_tts"],
+        TokenParser.task("controllable_tts"),
         "<|start_content|>",
         "<|end_content|>",
         "<|start_style_label|>",

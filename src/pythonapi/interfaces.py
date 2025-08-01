@@ -9,7 +9,7 @@ class Constants:
     """
 
     DEFAULT_NARRATOR_GENDER = "male"
-    DEFAULT_NARRATOR_PITCH = "low"
+    DEFAULT_NARRATOR_PITCH = "very_low"
     DEFAULT_NARRATOR_SPEED = "moderate"
 
     DEFAULT_TEMPERATURE = 0.8
