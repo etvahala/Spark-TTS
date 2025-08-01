@@ -75,4 +75,7 @@ def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) 
     tokenizer = access_tokenizer(model_dir)
     tokenized_content = tokenize_content(tokenizer, content, input_directives)
 
-    inference_into_wav(tokenized_content, model, output_spec=OutputSpec(output_dir=output_dir))
+    inference_into_wav(
+        tokenized_content,
+        model,
+        output_spec=OutputSpec(output_dir=output_dir))

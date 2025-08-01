@@ -4,13 +4,14 @@ from pathlib import Path
 from re import findall as re_findall
 
 from numpy import concatenate as numpy_concatenate
+from scipy.signal import resample
 from soundfile import write as soundfile_write
 from torch import (
     no_grad as torch_no_grad,
     Tensor as torch_tensor)
 
 from cli.SparkTTS import SparkTTS
-from pythonapi.interfaces import Constants, Narrator, OutputSpec, TokenizedContent
+from pythonapi.interfaces import InputDirectives, Narrator, OutputSpec, TokenizedContent
 from sparktts.utils.token_parser import GENDER_MAP, LEVELS_MAP, TASK_TOKEN_MAP
 
 _LOG = getLogger(__name__)
@@ -87,12 +88,8 @@ def _inference(
 
 def generate_input_directives(
     model: SparkTTS,
-    narrator: Narrator | None) -> str:
-    """Generate input directives for the TTS model
-
-        Return:
-            str: Input prompt prefix
-    """
+    narrator: Narrator | None) -> InputDirectives:
+    """Generate input directives for the TTS model"""
     narrator = narrator if narrator else Narrator()
 
     gender_id = GENDER_MAP[narrator.gender]
@@ -116,9 +113,17 @@ def generate_input_directives(
         "<|end_style_label|>",
     ]
 
-    return "".join(control_tts_inputs)
+    return InputDirectives(
+        text="".join(control_tts_inputs),
+        temperature=narrator.temperature,
+        top_k=narrator.top_k,
+        top_p=narrator.top_p
+    )
 
-def inference_into_wav(tokenized_content: TokenizedContent, model: SparkTTS, output_spec: OutputSpec) -> Path:
+def inference_into_wav(
+        tokenized_content: TokenizedContent,
+        model: SparkTTS,
+        output_spec: OutputSpec) -> Path:
     """
     Generate a WAV file using the TTS model.
 
@@ -126,20 +131,28 @@ def inference_into_wav(tokenized_content: TokenizedContent, model: SparkTTS, out
     """
     
     wavs = []
-    for segment in tokenized_content.segment_iterator:
-        directed_text = _fill_in_contents(segment, tokenized_content.input_directives)
+    input_directives = tokenized_content.input_directives
+    for segment in tokenized_content.segment_iterator:        
+        directed_text = _fill_in_contents(segment, input_directives.text)
         with torch_no_grad():
             
             wav = _inference(
                 model,
-                directed_text
+                directed_text,
+                temperature=input_directives.temperature,
+                top_k=input_directives.top_k,
+                top_p=input_directives.top_p,
             )
             wavs.append(wav)
     final_wav = numpy_concatenate(wavs, axis=0)
 
+    target_samplerate = 44100
+    original_samplerate = 16000
+    num_samples = int(len(final_wav) * target_samplerate / original_samplerate)
+    final_wav = resample(final_wav, num_samples)
 
     path = output_spec.output_dir / f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    soundfile_write(path, final_wav, samplerate=16000)
+    soundfile_write(path, final_wav, samplerate=target_samplerate)
     _LOG.info(f"Wav generated: {path}")

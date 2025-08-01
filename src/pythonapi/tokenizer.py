@@ -1,7 +1,7 @@
 from logging import getLogger
 from pathlib import Path
 from typing import Iterator
-from pythonapi.interfaces import Constants, Content, TokenizedContent
+from pythonapi.interfaces import Constants, Content, InputDirectives, TokenizedContent
 
 from transformers import AutoTokenizer
 
@@ -45,7 +45,7 @@ def _iterate_segments(tokenizer: AutoTokenizer, text: str, segmentation_threshol
         _LOG.debug("Yielding final segment.")
         yield ' '.join(sentences_in_segment)
 
-def tokenize_content(tokenizer: AutoTokenizer, content: Content, input_directives: str) -> TokenizedContent:
+def tokenize_content(tokenizer: AutoTokenizer, content: Content, input_directives: InputDirectives) -> TokenizedContent:
     """
     Tokenize the lines of text in the Content instance.
 
@@ -57,7 +57,7 @@ def tokenize_content(tokenizer: AutoTokenizer, content: Content, input_directive
     """
     text = '\n'.join(content.lines)
     
-    input_token_count = len(tokenizer.encode(input_directives, add_special_tokens=False))
+    input_token_count = len(tokenizer.encode(input_directives.text, add_special_tokens=False))
     text_token_count = len(tokenizer.encode(text, add_special_tokens=False))
     segment_size = content.max_tokens_per_segment or Constants.DEFAULT_TOKENS_PER_SEGMENT
     _LOG.info("Token count for text content: %(text)d - max segment size: %(segment)d", {'text': text_token_count, 'segment': segment_size - input_token_count})
