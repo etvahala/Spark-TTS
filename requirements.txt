@@ -1,5 +1,6 @@
 einops==0.8.1
 einx==0.3.0
+nltk==3.9.1
 numpy==2.2.3
 omegaconf==2.3.0
 packaging==24.2
