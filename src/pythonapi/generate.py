@@ -130,7 +130,8 @@ def inference_into_wav(
 
     Returns: Path to the generated WAV file.
     """
-    
+    start = datetime.now()
+    _LOG.debug("Starting inference into WAV...")
     wavs = []
     input_directives = tokenized_content.input_directives
     for segment in tokenized_content.segment_iterator:        
@@ -147,7 +148,7 @@ def inference_into_wav(
             wavs.append(wav)
     final_wav = numpy_concatenate(wavs, axis=0)
 
-    target_samplerate = 44100
+    target_samplerate = 24000
     original_samplerate = 16000
     num_samples = int(len(final_wav) * target_samplerate / original_samplerate)
     final_wav = resample(final_wav, num_samples)
@@ -156,4 +157,5 @@ def inference_into_wav(
 
     path.parent.mkdir(parents=True, exist_ok=True)
     soundfile_write(path, final_wav, samplerate=target_samplerate)
-    _LOG.info(f"Wav generated: {path}")
+    _LOG.info(f"Wav generated: {path} in {datetime.now() - start} seconds")
+    return path

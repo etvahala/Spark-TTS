@@ -34,7 +34,12 @@ class InputDirectives:
     """
     Input directives for the TTS model.
     """
+
+    # Directives as text + placeholder for the content text to be narrated
     text: str
+
+    # Seed for random number generation that was used to initialize the voice model
+    seed: Optional[int] = None
 
     temperature: float = Constants.DEFAULT_TEMPERATURE
 
@@ -77,3 +82,5 @@ class TokenizedContent:
     segment_iterator: Iterator[str]
 
     input_directives: InputDirectives
+
+    output_file: Path | None = None

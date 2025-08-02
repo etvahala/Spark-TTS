@@ -1,3 +1,4 @@
+from json import dumps as json_dumps
 from logging import getLogger
 from pathlib import Path
 
@@ -10,7 +11,8 @@ from pythonapi.generate import generate_input_directives, inference_into_wav
 from pythonapi.interfaces import (
     Content,
     Narrator,
-    OutputSpec
+    OutputSpec,
+    TokenizedContent
 )
 from pythonapi.tokenizer import (
     access_tokenizer,
@@ -50,11 +52,11 @@ def _try_seeding(seed: int | None, device: torch_device) -> int:
 
     return seed
 
-def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) -> Path:
+def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) -> TokenizedContent:
     """
     Generate a WAV file using the TTS model
     
-    Returns: Path to the generated WAV file.
+    Returns: collected results in a TokenizedContent instance.
     """
 
     device = _get_torch_device()
@@ -71,11 +73,20 @@ def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) 
     input_directives = generate_input_directives(
         model=model,
         narrator=narrator)
+    input_directives.seed = seed
 
-    tokenizer = access_tokenizer(model_dir)
-    tokenized_content = tokenize_content(tokenizer, content, input_directives)
+    tokenizer = access_tokenizer(model_dir)    
+    tokenized_content = tokenize_content(tokenizer, content, input_directives)    
 
-    inference_into_wav(
+    tokenized_content.output_file = inference_into_wav(
         tokenized_content,
         model,
         output_spec=OutputSpec(output_dir=output_dir))
+    
+    narrator_json_path = tokenized_content.output_file.with_suffix('.json')
+    narrator_details = {
+        'lines': content.lines,
+        'input_directives': input_directives.text,
+        'seed': seed,            
+    }
+    narrator_json_path.write_text(json_dumps(narrator_details, indent=4))
