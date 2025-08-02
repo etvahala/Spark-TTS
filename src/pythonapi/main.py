@@ -40,15 +40,8 @@ parser.add_argument(
 )
 parser.add_argument(
     "--narrator-path",
-    type=int,
     default=None,
-    help="Provide a path to narrator-produced WAV file to use as a base for the new narrator."
-)
-parser.add_argument(
-    "--narrator-text",
-    type=str,
-    default=None,
-    help="Text content to be used by the narrator. If not provided, narrator path will be used with .txt suffix"
+    help="Provide a path to narrator JSON file to continue using an existing voice."
 )
 parser.add_argument(
     "--narrator-seed",
@@ -73,10 +66,17 @@ args = parser.parse_args()
 basicConfig(level=DEBUG if args.verbose else INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 from pythonapi import generate_wav
-from pythonapi.interfaces import Content, Narrator
+from pythonapi.interfaces import Content, Narrator, NarratorVoiceSpec
 
 generate_wav(
     content=Content(lines=[args.content]),
-    narrator=Narrator(seed=args.narrator_seed, gender=args.narrator_gender, pitch=args.narrator_pitch, speed=args.narrator_speed),
+    narrator=Narrator(
+        voice_spec=NarratorVoiceSpec(
+            gender=args.narrator_gender,
+            pitch=args.narrator_pitch,
+            speed=args.narrator_speed
+        ) if args.narrator_path is None else Path(args.narrator_path),
+        seed=args.narrator_seed,
+    ),
     output_dir=Path("results")
 )

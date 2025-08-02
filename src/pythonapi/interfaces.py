@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Optional, List
+from typing import Any, Iterator, Optional, List
 
 class Constants:
     """
@@ -30,6 +30,15 @@ class Content:
     max_tokens_per_segment: Optional[int] = None
 
 @dataclass
+class PredefinedVoice:
+
+    # Tokenized wav prompt file
+    global_token_ids: Any
+
+    # Transcript of the prompt audio
+    prompt_as_text: str
+
+@dataclass
 class InputDirectives:
     """
     Input directives for the TTS model.
@@ -37,6 +46,9 @@ class InputDirectives:
 
     # Directives as text + placeholder for the content text to be narrated
     text: str
+
+    # This is defined when the voice is generated from existing narrator voice
+    predefined_voice: Optional[PredefinedVoice] = None
 
     # Seed for random number generation that was used to initialize the voice model
     seed: Optional[int] = None
@@ -48,11 +60,18 @@ class InputDirectives:
     top_p: float = Constants.DEFAULT_TOP_P
 
 @dataclass
-class Narrator:
+class NarratorVoiceSpec:
 
     gender: str = Constants.DEFAULT_NARRATOR_GENDER
     pitch: str = Constants.DEFAULT_NARRATOR_PITCH
     speed: str = Constants.DEFAULT_NARRATOR_SPEED
+
+
+@dataclass
+class Narrator:
+
+    # Voice is either provided as parametrized spec, or as a path to a pregenerated voice JSON file (links to a WAV file)
+    voice_spec: NarratorVoiceSpec | Path
 
     # Optional UInt32 seed for random number generation to initialize the voice model
     seed: Optional[int] = None

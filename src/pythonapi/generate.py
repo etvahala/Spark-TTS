@@ -1,7 +1,9 @@
 from datetime import datetime
+from json import loads as json_loads
 from logging import getLogger
 from pathlib import Path
 from re import findall as re_findall
+from typing import Tuple
 
 from numpy import concatenate as numpy_concatenate
 from scipy.signal import resample
@@ -11,12 +13,12 @@ from torch import (
     Tensor as torch_tensor)
 
 from cli.SparkTTS import SparkTTS
-from pythonapi.interfaces import InputDirectives, Narrator, OutputSpec, TokenizedContent
+from pythonapi.interfaces import InputDirectives, Narrator, NarratorVoiceSpec, OutputSpec, PredefinedVoice, TokenizedContent
 from sparktts.utils.token_parser import GENDER_MAP, LEVELS_MAP, TASK_TOKEN_MAP, TokenParser
 
 _LOG = getLogger(__name__)
 
-def _fill_in_contents(segment: str, input_directives: str) -> str:
+def _fill_in_contents(segment: str, input_directives: InputDirectives) -> str:
     """
     Fill in the content with input directives.
 
@@ -30,13 +32,61 @@ def _fill_in_contents(segment: str, input_directives: str) -> str:
     Returns:
         str: The filled content.
     """
-    filled = input_directives.replace("<|start_content|><|end_content|>", f"<|start_content|>{segment}<|end_content|>")
+    if input_directives.predefined_voice:
+        if not input_directives.predefined_voice.prompt_as_text.rstrip().endswith(('.', '!', '?')):
+            input_directives.predefined_voice.prompt_as_text += '.'
+        segment = f'{input_directives.predefined_voice.prompt_as_text}{segment}'
+
+    filled = input_directives.text.replace("<|start_content|><|end_content|>", f"<|start_content|>{segment}<|end_content|>")
     return filled
+
+def _generate_voice_from_existing_data(model: SparkTTS, narrator_path: Path) -> Tuple[str, str, torch_tensor]:
+    """
+    Generate voice from existing data.
+
+    Args:
+        narrator_path (Path): Path to the existing narrator JSON file.
+
+    Returns:
+        str: The text content to be narrated.
+    """
+    if not narrator_path.exists():
+        raise FileNotFoundError(f"Provided narrator path does not exist: {narrator_path}")
+    wav_path = narrator_path.with_suffix('.wav')
+    if not wav_path.exists():
+        raise FileNotFoundError(f"Expected WAV file does not exist: {wav_path}")
+    
+    json_obj = json_loads(narrator_path.read_text())
+    prompt_as_text = '\n'.join(json_obj.get('lines', None))
+
+    global_token_ids, semantic_token_ids = model.audio_tokenizer.tokenize(wav_path)
+    global_tokens = "".join(
+        [f"<|bicodec_global_{i}|>" for i in global_token_ids.squeeze()]
+    )
+
+    # Prepare the input tokens for the model
+    semantic_tokens = "".join(
+        [f"<|bicodec_semantic_{i}|>" for i in semantic_token_ids.squeeze()]
+    )
+    inputs = [
+        TokenParser.task("tts"),
+        "<|start_content|>",
+        "<|end_content|>",
+        "<|start_global_token|>",
+        global_tokens,
+        "<|end_global_token|>",
+        "<|start_semantic_token|>",
+        semantic_tokens,
+    ]
+
+    inputs = "".join(inputs)
+    return inputs, prompt_as_text, global_token_ids
 
 @torch_no_grad()
 def _inference(
     model: SparkTTS,
     text: str,
+    global_token_ids: torch_tensor | None = None,
     temperature: float = 0.8,
     top_k: float = 50,
     top_p: float = 0.95) -> torch_tensor:
@@ -71,12 +121,14 @@ def _inference(
         .unsqueeze(0)
     )
 
-    global_token_ids = (
-        torch_tensor([int(token) for token in re_findall(r"bicodec_global_(\d+)", predicts)])
-        .long()
-        .unsqueeze(0)
-        .unsqueeze(0)
-    )
+    if global_token_ids is None:
+        # Not using a predefined voice, extract global token IDs
+        global_token_ids = (
+            torch_tensor([int(token) for token in re_findall(r"bicodec_global_(\d+)", predicts)])
+            .long()
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )
 
     # Convert semantic tokens back to waveform
     wav = model.audio_tokenizer.detokenize(
@@ -92,17 +144,35 @@ def generate_input_directives(
     """Generate input directives for the TTS model"""
     narrator = narrator if narrator else Narrator()
 
+    if isinstance(narrator.voice_spec, Path):
+        _LOG.info("Using existing narrator voice from path: %s", narrator.voice_spec)
+        text, prompt_as_text,global_token_ids = _generate_voice_from_existing_data(model, narrator.voice_spec)
+        return InputDirectives(
+            predefined_voice=PredefinedVoice(
+                global_token_ids=global_token_ids,
+                prompt_as_text=prompt_as_text
+            ),
+            text=text,
+            seed=narrator.seed,
+            temperature=narrator.temperature,
+            top_k=narrator.top_k,
+            top_p=narrator.top_p
+        )
+
+    _LOG.info("Generating a new narrator voice with spec")
+    assert isinstance(narrator.voice_spec, NarratorVoiceSpec)
+    voice_spec = narrator.voice_spec
     attribute_tokens = "".join(
         [
-            TokenParser.gender(narrator.gender),
+            TokenParser.gender(voice_spec.gender),
             #TokenParser.mel_value(10),
-            TokenParser.mel_level(narrator.pitch),
+            TokenParser.mel_level(voice_spec.pitch),
             #TokenParser.pitch_var_value(narrator.pitch),
             #TokenParser.pitch_var_level(narrator.pitch),
             #TokenParser.loudness_value(narrator.pitch),
             #TokenParser.loudness_level(narrator.pitch),
             #TokenParser.speed_value(narrator.speed),
-            TokenParser.speed_level(narrator.speed)]
+            TokenParser.speed_level(voice_spec.speed)]
     )
 
     control_tts_inputs = [
@@ -135,12 +205,16 @@ def inference_into_wav(
     wavs = []
     input_directives = tokenized_content.input_directives
     for segment in tokenized_content.segment_iterator:        
-        directed_text = _fill_in_contents(segment, input_directives.text)
+        directed_text = _fill_in_contents(segment, input_directives)
         with torch_no_grad():
             
             wav = _inference(
                 model,
                 directed_text,
+                global_token_ids=(
+                    input_directives.predefined_voice.global_token_ids
+                    if input_directives.predefined_voice else None
+                ),
                 temperature=input_directives.temperature,
                 top_k=input_directives.top_k,
                 top_p=input_directives.top_p,
