@@ -3,6 +3,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Optional, List
 
+@dataclass
+class VoiceMetadata:
+    """Voice details as JSON
+
+    When voices wav is available, it is used to initialize the voice model
+    and the following details are stored in a JSON file.
+    """
+    seed: int
+
+    lines: List[str] = field(default_factory=list)
+
+    input_directives: str = ""
+
 class Constants:
     """
     Constants for the TTS system.

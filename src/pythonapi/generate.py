@@ -13,6 +13,7 @@ from torch import (
     Tensor as torch_tensor)
 
 from cli.SparkTTS import SparkTTS
+from pythonapi.cannedvoice import get_canned_voice
 from pythonapi.interfaces import InputDirectives, Narrator, NarratorVoiceSpec, OutputSpec, PredefinedVoice, TokenizedContent
 from sparktts.utils.token_parser import GENDER_MAP, LEVELS_MAP, TASK_TOKEN_MAP, TokenParser
 
@@ -56,8 +57,8 @@ def _generate_voice_from_existing_data(model: SparkTTS, narrator_path: Path) -> 
     if not wav_path.exists():
         raise FileNotFoundError(f"Expected WAV file does not exist: {wav_path}")
     
-    json_obj = json_loads(narrator_path.read_text())
-    prompt_as_text = '\n'.join(json_obj.get('lines', None))
+    voice_details = get_canned_voice(narrator_path)
+    prompt_as_text = '\n'.join(voice_details.lines)
 
     global_token_ids, semantic_token_ids = model.audio_tokenizer.tokenize(wav_path)
     global_tokens = "".join(

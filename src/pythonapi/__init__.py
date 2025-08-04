@@ -1,4 +1,3 @@
-from json import dumps as json_dumps
 from logging import getLogger
 from pathlib import Path
 
@@ -7,12 +6,14 @@ from torch import (
     device as torch_device,
     randint as torch_randint)
 
+from pythonapi.cannedvoice import CannedVoice, get_canned_voice
 from pythonapi.generate import generate_input_directives, inference_into_wav
 from pythonapi.interfaces import (
     Content,
     Narrator,
     OutputSpec,
-    TokenizedContent
+    TokenizedContent,
+    VoiceMetadata
 )
 from pythonapi.tokenizer import (
     access_tokenizer,
@@ -36,7 +37,16 @@ def _get_root_dir() -> Path:
     """
     return Path(__file__).resolve().parent.parent.parent
 
-def _try_seeding(seed: int | None, device: torch_device) -> int:
+def _try_seeding(narrator: Narrator | None, device: torch_device) -> int:
+    seed: int | None = None
+    if narrator is not None:
+        if narrator.seed is not None:
+            _LOG.info('Using the explicitly provided seed: %(seed)s', {'seed': narrator.seed})
+            seed = narrator.seed
+        elif narrator.voice_spec and isinstance(narrator.voice_spec, Path):
+            seed = get_canned_voice(narrator.voice_spec).seed
+            _LOG.info('Using seed from existing voice spec: %(seed)s', {'seed': seed})
+
     if seed is None:
         seed = int(torch_randint(low=0, high=4294967295, size=(1, 1), device=device))
         _LOG.info('No seed provided, using randomly generated seed: %(seed)s', {'seed': seed})
@@ -60,7 +70,7 @@ def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) 
     """
 
     device = _get_torch_device()
-    seed = _try_seeding(narrator.seed if narrator else None, device)
+    seed = _try_seeding(narrator, device)
 
     root_dir = _get_root_dir()
     model_dir = root_dir / "pretrained_models" / "Spark-TTS-0.5B"
@@ -84,9 +94,10 @@ def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) 
         output_spec=OutputSpec(output_dir=output_dir))
     
     narrator_json_path = tokenized_content.output_file.with_suffix('.json')
-    narrator_details = {
-        'lines': content.lines,
-        'input_directives': input_directives.text,
-        'seed': seed,            
-    }
-    narrator_json_path.write_text(json_dumps(narrator_details, indent=4))
+    CannedVoice(narrator_json_path).write(
+        VoiceMetadata(
+            lines=content.lines,
+            seed=seed,
+            input_directives=input_directives.text,
+        )
+    )
