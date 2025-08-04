@@ -62,7 +62,7 @@ def _try_seeding(narrator: Narrator | None, device: torch_device) -> int:
 
     return seed
 
-def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None) -> TokenizedContent:
+def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None, output_filename: str | None = None) -> TokenizedContent:
     """
     Generate a WAV file using the TTS model
     
