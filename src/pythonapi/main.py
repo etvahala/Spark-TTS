@@ -35,7 +35,7 @@ parser.add_argument(
     "--narrator-speed",
     type=str,
     default="moderate",
-    choices=["very_slow", "slow", "moderate", "fast", "very_fast"],
+    choices=["very_low", "low", "moderate", "high", "very_high"],
     help="Speed of the narrator."
 )
 parser.add_argument(

@@ -106,6 +106,8 @@ class OutputSpec:
     """
     output_dir: Path
 
+    output_filename: Optional[str] = None
+
 @dataclass
 class TokenizedContent:
     """

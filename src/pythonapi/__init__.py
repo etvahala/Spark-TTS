@@ -91,8 +91,12 @@ def generate_wav(content: Content, output_dir: Path, narrator: Narrator | None, 
     tokenized_content.output_file = inference_into_wav(
         tokenized_content,
         model,
-        output_spec=OutputSpec(output_dir=output_dir))
-    
+        output_spec=OutputSpec(
+            output_dir=output_dir,
+            output_filename=output_filename
+        )
+    )
+
     narrator_json_path = tokenized_content.output_file.with_suffix('.json')
     CannedVoice(narrator_json_path).write(
         VoiceMetadata(

@@ -220,6 +220,7 @@ def inference_into_wav(
                 top_k=input_directives.top_k,
                 top_p=input_directives.top_p,
             )
+            _LOG.debug("Generated WAV segment")
             wavs.append(wav)
     final_wav = numpy_concatenate(wavs, axis=0)
 
@@ -228,7 +229,8 @@ def inference_into_wav(
     num_samples = int(len(final_wav) * target_samplerate / original_samplerate)
     final_wav = resample(final_wav, num_samples)
 
-    path = output_spec.output_dir / f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+    filename = output_spec.output_filename or f"output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.wav"
+    path = output_spec.output_dir / filename
 
     path.parent.mkdir(parents=True, exist_ok=True)
     soundfile_write(path, final_wav, samplerate=target_samplerate)

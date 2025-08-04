@@ -37,6 +37,7 @@ def _iterate_segments(tokenizer: AutoTokenizer, text: str, segmentation_threshol
         if token_count > segmentation_threshold:
             _LOG.debug("Token count exceeded model max length, yielding segment.")
             yield ' '.join(sentences_in_segment)
+            _LOG.debug(f"Resetting token count and starting next segment: {sentence[0:50]}...")
             sentences_in_segment = [sentence]
             token_count = 0
         else:
